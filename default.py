@@ -8,6 +8,7 @@ import subprocess
 import xbmcplugin
 import xbmcgui
 import xbmcaddon
+import signal
 
 
 addon = xbmcaddon.Addon()
@@ -28,6 +29,7 @@ scriptDelay = int(addon.getSetting("scriptDelay"))
 userDataFolder = xbmc.translatePath("special://profile/addon_data/"+addonID)
 profileFolder = os.path.join(userDataFolder, 'profile')
 siteFolder = os.path.join(userDataFolder, 'sites')
+browserPIDFile = os.path.join(userDataFolder, 'browser.pid')
 
 if not os.path.isdir(userDataFolder):
     os.mkdir(userDataFolder)
@@ -119,6 +121,7 @@ def getFullPath(path, url, useKiosk, userAgent):
 
 
 def showSite(url, stopPlayback, kiosk, userAgent):
+    fullUrl = ""
     if stopPlayback == "yes":
         xbmc.Player().stop()
     if osWin:
@@ -170,6 +173,44 @@ def showSite(url, stopPlayback, kiosk, userAgent):
         else:
             xbmc.executebuiltin('XBMC.Notification(Info:,'+str(translation(30005))+'!,5000)')
             addon.openSettings()
+    print("fullUrl: %s" % fullUrl)
+
+    if fullUrl != "":
+        if os.path.exists(browserPIDFile):
+            os.unlink(browserPIDFile)
+        fh = open(browserPIDFile, 'w+')
+        fh.write(fullUrl)
+        fh.close()
+
+    xbmcgui.Dialog().ok(addon.getAddonInfo('name') , translation(30017))
+    killBrowser()
+
+
+def killBrowser():
+    if os.path.exists(browserPIDFile):
+        fh = open(browserPIDFile)
+        fullUrl = fh.read()
+        fh.close()
+        browserPID = -1
+        if len(fullUrl) > 0:
+            # a full re.escape() is too much
+            fullUrlEsc = fullUrl.replace('"','')
+            if osWin:
+                # WINDOWS VERSION NEEDS TO BE FIXED
+                psgrep = 'tasklist | FIND "chrome"'
+            if osLinux:
+                psgrep = '/bin/ps ax | /bin/grep "'+fullUrlEsc+'"'
+            if osOsx:
+                psgrep = '/bin/ps ax | /usr/bin/grep "'+fullUrlEsc+'"'
+            print("process grep: %s" % psgrep)
+            processList = subprocess.check_output( psgrep, shell=True )
+            processMatch = re.findall('^\d*', processList).pop(0)
+            browserPID = int(processMatch)
+        else:
+            browserPID = -1
+        if browserPID > 0:
+            os.kill(browserPID, signal.SIGKILL)
+            os.unlink(browserPIDFile)
 
 
 def removeSite(title):
@@ -275,3 +316,4 @@ elif mode == 'editSite':
     editSite(url)
 else:
     index()
+
