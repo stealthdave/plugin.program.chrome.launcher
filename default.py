@@ -209,7 +209,7 @@ def killBrowser():
         else:
             browserPID = -1
         if browserPID > 0:
-            os.kill(browserPID, signal.SIGKILL)
+            os.kill(browserPID, signal.SIGTERM)
             os.unlink(browserPIDFile)
 
 
